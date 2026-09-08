@@ -1,0 +1,942 @@
+<!doctype html>
+<html lang="id" class="transition-colors duration-700">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Micro:bit Dual Controller - Ocean Command</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: { bText: "#0f172a" },
+          },
+        },
+      };
+    </script>
+    <style>
+      /* Efek Ombak (Waves) di atas */
+      .wave-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        overflow: hidden;
+        line-height: 0;
+        z-index: 0;
+        transform: rotate(180deg);
+        opacity: 0.5;
+      }
+      .dark .wave-container {
+        opacity: 0.2;
+      }
+      .wave-container svg {
+        position: relative;
+        display: block;
+        width: calc(130% + 1.3px);
+        height: 80px;
+        animation: moveWaves 15s linear infinite;
+      }
+      .wave-container .shape-fill {
+        fill: rgba(255, 255, 255, 0.4);
+      }
+      @keyframes moveWaves {
+        0% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(-20%);
+        }
+      }
+
+      /* Efek Cahaya Tembus Air */
+      .light-rays {
+        position: fixed;
+        top: 0;
+        left: -50%;
+        width: 200%;
+        height: 100%;
+        background: repeating-linear-gradient(
+          75deg,
+          transparent 0%,
+          transparent 5%,
+          rgba(255, 255, 255, 0.15) 6%,
+          transparent 12%,
+          transparent 20%,
+          rgba(255, 255, 255, 0.08) 22%
+        );
+        z-index: 0;
+        pointer-events: none;
+        animation: shiftRays 12s linear infinite alternate;
+      }
+      .dark .light-rays {
+        background: repeating-linear-gradient(
+          75deg,
+          transparent 0%,
+          transparent 5%,
+          rgba(99, 102, 241, 0.08) 6%,
+          transparent 12%,
+          transparent 20%,
+          rgba(99, 102, 241, 0.04) 22%
+        );
+      }
+      @keyframes shiftRays {
+        0% {
+          transform: translateX(0) skewX(-10deg);
+        }
+        100% {
+          transform: translateX(5%) skewX(10deg);
+        }
+      }
+
+      /* Gelembung Halus Latar Belakang */
+      .dynamic-bubble {
+        position: absolute;
+        bottom: -50px;
+        background: radial-gradient(
+          circle at 30% 30%,
+          rgba(255, 255, 255, 0.8),
+          rgba(255, 255, 255, 0.1)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 50%;
+        box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.4);
+        backdrop-filter: blur(2px);
+        animation:
+          floatUp 0s linear forwards,
+          sway 0s ease-in-out infinite alternate;
+        z-index: 1;
+      }
+      .dark .dynamic-bubble {
+        background: radial-gradient(
+          circle at 30% 30%,
+          rgba(129, 140, 248, 0.5),
+          rgba(255, 255, 255, 0.05)
+        );
+        border: 1px solid rgba(99, 102, 241, 0.3);
+      }
+
+      @keyframes floatUp {
+        0% {
+          bottom: -5%;
+          opacity: 0;
+          transform: scale(0.5);
+        }
+        10% {
+          opacity: 0.8;
+          transform: scale(1);
+        }
+        80% {
+          opacity: 0.8;
+          transform: scale(1.1);
+        }
+        100% {
+          bottom: 110%;
+          opacity: 0;
+          transform: scale(1.5);
+        }
+      }
+      @keyframes sway {
+        0% {
+          margin-left: 0px;
+        }
+        100% {
+          margin-left: 15px;
+        }
+      }
+
+      /* Hiasan Rumput Laut Minimalis (Tidak Mengganggu) */
+      .sway-weed {
+        transform-origin: bottom center;
+        animation: sway-weed-anim 4s ease-in-out infinite alternate;
+        user-select: none;
+        pointer-events: none;
+      }
+      @keyframes sway-weed-anim {
+        0% {
+          transform: rotate(-6deg);
+        }
+        100% {
+          transform: rotate(8deg);
+        }
+      }
+
+      /* Panel Kaca (Wet Glass) */
+      .wet-glass {
+        background: rgba(218, 251, 255, 0.894);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.911);
+        box-shadow:
+          0 8px 32px 0 rgba(0, 100, 150, 0.1),
+          inset 0 0 15px rgba(255, 255, 255, 0.6);
+        position: relative;
+        overflow: hidden;
+      }
+      .dark .wet-glass {
+        background: rgba(15, 23, 42, 0.949);
+        border: 1px solid rgba(56, 189, 248, 0.25);
+        box-shadow:
+          0 8px 32px 0 rgba(0, 0, 0, 0.5),
+          inset 0 0 15px rgba(56, 189, 248, 0.1);
+      }
+
+      /* Liquid Controller */
+      @keyframes liquid-shape {
+        0% {
+          border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+        }
+        50% {
+          border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
+        }
+        100% {
+          border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+        }
+      }
+      .sea-blob-container {
+        background: linear-gradient(135deg, #f6d365 5%, #fda085 100%);
+        animation: liquid-shape 7s ease-in-out infinite;
+        box-shadow:
+          inset 0 0 25px rgba(255, 255, 255, 0.9),
+          0 12px 28px rgba(255, 120, 0, 0.3);
+        border: 10px solid rgba(255, 255, 255, 0.9);
+      }
+      .dark .sea-blob-container {
+        background: linear-gradient(135deg, #1e3a8a 5%, #312e81 100%);
+        box-shadow:
+          inset 0 0 25px rgba(0, 0, 0, 0.8),
+          inset 0 0 12px rgba(56, 189, 248, 0.4),
+          0 12px 28px rgba(0, 0, 0, 0.6);
+        border: 10px solid rgba(56, 189, 248, 0.3);
+      }
+
+      /* Bubble Buttons */
+      .bubble-btn {
+        background: rgba(255, 255, 255, 0.65);
+        backdrop-filter: blur(5px);
+        border: 2px solid rgba(255, 255, 255, 0.9);
+        border-radius: 50%;
+        box-shadow:
+          0 4px 12px rgba(0, 0, 0, 0.1),
+          inset 0 0 8px rgba(255, 255, 255, 0.9);
+        transition: all 0.2s;
+        color: #c2410c;
+      }
+      .dark .bubble-btn {
+        background: rgba(15, 23, 42, 0.7);
+        border-color: rgba(56, 189, 248, 0.5);
+        box-shadow:
+          0 4px 12px rgba(0, 0, 0, 0.4),
+          inset 0 0 8px rgba(56, 189, 248, 0.2);
+        color: #7dd3fc;
+      }
+      .bubble-btn:hover {
+        background: rgba(255, 255, 255, 0.95);
+        transform: scale(1.08);
+        color: #ea580c;
+      }
+      .dark .bubble-btn:hover {
+        background: rgba(30, 41, 59, 0.9);
+        border-color: #38bdf8;
+        box-shadow: 0 0 15px rgba(56, 189, 248, 0.6);
+        color: #fff;
+      }
+
+      .bubble-btn.active-btn {
+        background: linear-gradient(135deg, #f97316, #e11d48) !important;
+        color: white !important;
+        transform: scale(0.92) !important;
+        border-color: white !important;
+        box-shadow: 0 0 20px rgba(249, 115, 22, 0.7) !important;
+      }
+      .dark .bubble-btn.active-btn {
+        background: linear-gradient(135deg, #8b5cf6, #d946ef) !important;
+        box-shadow: 0 0 25px rgba(217, 70, 239, 0.8) !important;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-gradient-to-b from-sky-400 via-teal-200 to-amber-100 dark:from-slate-900 dark:via-indigo-950 dark:to-blue-950 text-slate-800 dark:text-slate-200 min-h-screen p-4 lg:p-8 flex flex-col justify-between relative overflow-x-hidden"
+  >
+    <!-- EFEK LATAR BELAKANG -->
+    <div class="fixed inset-0 pointer-events-none z-0">
+      <div class="light-rays"></div>
+      <div class="wave-container">
+        <svg
+          data-name="Layer 1"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 1200 120"
+          preserveAspectRatio="none"
+        >
+          <path
+            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
+            class="shape-fill"
+          ></path>
+        </svg>
+      </div>
+      <div
+        id="bubbles-container"
+        class="absolute inset-0 overflow-hidden"
+      ></div>
+    </div>
+
+    <!-- HIASAN SUDUT MINIMALIS (TIDAK MENGGANGGU) -->
+    <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+      <div class="absolute bottom-1 left-4 text-4xl sway-weed opacity-60">
+        🌿🐳🦀🪸
+      </div>
+      <div
+        class="absolute bottom-1 right-4 text-4xl sway-weed opacity-60"
+        style="animation-delay: 2s; transform: scaleX(-1)"
+      >
+        🪼🦞🪸🐬
+      </div>
+    </div>
+
+    <!-- MAIN UI -->
+    <div class="w-full max-w-[1400px] mx-auto space-y-6 relative z-10">
+      <!-- HEADER -->
+      <header
+        class="w-full wet-glass rounded-3xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 shadow-xl"
+      >
+        <div class="text-center md:text-left">
+          <h1
+            class="text-2xl lg:text-3xl font-black tracking-wider text-orange-600 dark:text-cyan-300 drop-shadow-sm"
+          >
+            OCEAN CONTOLLER
+          </h1>
+          <p
+            class="text-orange-900/80 dark:text-blue-200 text-xs mt-0.5 font-bold"
+          >
+            Deep Sea & Summer Rover Control 🌊
+          </p>
+        </div>
+
+        <div
+          class="flex items-center gap-3 w-full md:w-auto justify-end flex-wrap z-20"
+        >
+          <button
+            id="theme-toggle"
+            class="p-2.5 bg-white/50 dark:bg-white/20 hover:bg-white/70 dark:hover:bg-white/30 border border-white/60 rounded-xl transition backdrop-blur-md shadow-md pointer-events-auto"
+            title="Ganti Tema"
+          >
+            <i class="fas fa-moon hidden dark:block text-lg text-white"></i>
+            <i class="fas fa-sun dark:hidden text-lg text-orange-500"></i>
+          </button>
+          <div
+            id="mode-badge"
+            class="px-4 py-2.5 rounded-xl bg-white/50 dark:bg-white/20 border border-white/60 text-xs font-black text-slate-800 dark:text-white tracking-wider uppercase shadow-md backdrop-blur-md"
+          >
+            Manual Joystick
+          </div>
+
+          <button
+            onclick="toggleModal(true)"
+            class="p-2.5 bg-white/50 dark:bg-white/20 hover:bg-white/70 dark:hover:bg-white/30 border border-white/60 rounded-xl transition backdrop-blur-md shadow-md pointer-events-auto"
+            title="Pengaturan Firebase"
+          >
+            <i
+              class="fas fa-wifi text-lg text-orange-600 dark:text-cyan-300"
+            ></i>
+          </button>
+          <button
+            id="btn-connect"
+            onclick="connectBluetooth()"
+            class="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white rounded-xl font-bold text-xs shadow-lg border border-white/50 transition flex items-center gap-2 pointer-events-auto"
+          >
+            <i class="fab fa-bluetooth-b text-sm"></i>
+            <span id="ble-btn-text">Connect Micro:bit</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- KONTROL UTAMA -->
+      <main class="w-full grid grid-cols-1 lg:grid-cols-2 gap-6 relative z-10">
+        <!-- PANEL D-PAD -->
+        <section
+          class="wet-glass rounded-3xl p-6 flex flex-col items-center justify-between min-h-[480px]"
+        >
+          <div class="w-full flex justify-between items-center mb-2">
+            <h2
+              class="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2"
+            >
+              <i class="fas fa-gamepad text-orange-500 dark:text-cyan-400"></i>
+              Water Pad
+            </h2>
+          </div>
+
+          <div
+            class="sea-blob-container relative w-72 h-72 sm:w-80 sm:h-80 flex items-center justify-center p-6 my-auto pointer-events-auto"
+          >
+            <div class="grid grid-cols-3 gap-3 w-full h-full relative z-30">
+              <div></div>
+              <button
+                id="bt-up"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+              >
+                <i
+                  class="fas fa-chevron-up text-2xl group-hover:-translate-y-1 transition-transform"
+                ></i>
+              </button>
+              <div></div>
+
+              <button
+                id="bt-left"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+              >
+                <i
+                  class="fas fa-chevron-left text-2xl group-hover:-translate-x-1 transition-transform"
+                ></i>
+              </button>
+
+              <div class="flex items-center justify-center">
+                <div
+                  class="w-12 h-12 bg-white/50 dark:bg-black/40 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/60"
+                >
+                  <div
+                    id="status-dot"
+                    class="w-3.5 h-3.5 bg-red-500 dark:bg-rose-500 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.8)]"
+                  ></div>
+                </div>
+              </div>
+
+              <button
+                id="bt-right"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+              >
+                <i
+                  class="fas fa-chevron-right text-2xl group-hover:translate-x-1 transition-transform"
+                ></i>
+              </button>
+
+              <div></div>
+              <button
+                id="bt-down"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+              >
+                <i
+                  class="fas fa-chevron-down text-2xl group-hover:translate-y-1 transition-transform"
+                ></i>
+              </button>
+              <div></div>
+            </div>
+          </div>
+
+          <div
+            class="w-full flex justify-between text-xs font-bold border-t border-slate-400/30 dark:border-white/20 pt-4 mt-2 text-slate-700 dark:text-slate-200 z-20"
+          >
+            <span
+              >BLE:
+              <strong
+                id="ble-status"
+                class="bg-white/60 dark:bg-black/40 px-2.5 py-1 rounded-lg text-red-600 dark:text-red-400"
+                >Terputus</strong
+              ></span
+            >
+            <span
+              >Firebase:
+              <strong
+                id="fb-status"
+                class="bg-white/60 dark:bg-black/40 px-2.5 py-1 rounded-lg text-amber-700 dark:text-amber-400"
+                >Belum Terhubung</strong
+              ></span
+            >
+          </div>
+        </section>
+
+        <!-- PANEL AI KAMERA -->
+        <section
+          class="wet-glass rounded-3xl p-6 flex flex-col items-center justify-between min-h-[480px]"
+        >
+          <div class="w-full flex justify-between items-center mb-2 z-20">
+            <h2
+              class="text-base font-extrabold text-slate-800 dark:text-white flex items-center gap-2"
+            >
+              <i class="fas fa-camera text-orange-500 dark:text-cyan-400"></i>
+              AI Vision
+            </h2>
+            <button
+              id="btn-toggle-cam"
+              onclick="toggleCamera()"
+              class="px-4 py-2 bg-white/60 dark:bg-white/20 hover:bg-white/80 dark:hover:bg-white/30 text-slate-900 dark:text-white border border-white/60 font-bold rounded-xl text-xs shadow-md backdrop-blur-md transition flex items-center gap-2 pointer-events-auto"
+            >
+              <i class="fas fa-power-off"></i>
+              <span id="cam-btn-text">Aktifkan Kamera</span>
+            </button>
+          </div>
+
+          <!-- TAMPILAN KAMERA YANG DITINGKATKAN KETERBACAANNYA -->
+          <div
+            class="relative w-full max-w-[280px] aspect-square rounded-full overflow-hidden border-8 border-white/70 dark:border-sky-400/30 shadow-[0_0_30px_rgba(0,0,0,0.15)] bg-slate-900/10 dark:bg-black/40 flex flex-col items-center justify-center backdrop-blur-sm z-20 my-auto"
+          >
+            <div
+              id="webcam-container"
+              class="w-full h-full flex items-center justify-center pointer-events-none"
+            ></div>
+
+            <!-- KOTAK STATUS KAMERA KONTRAST TINGGI -->
+            <div
+              id="cam-placeholder"
+              class="text-slate-900 dark:text-white flex flex-col items-center gap-2 relative z-10 bg-white/80 dark:bg-slate-900/80 px-5 py-3 rounded-2xl border border-white/80 dark:border-slate-700/80 backdrop-blur-md shadow-lg text-center"
+            >
+              <i
+                class="fas fa-video-slash text-3xl text-orange-600 dark:text-cyan-400"
+              ></i>
+              <span
+                class="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100"
+                >Kamera Nonaktif</span
+              >
+            </div>
+          </div>
+
+          <!-- DESAIN LABEL PREDIKSI YANG JELAS DAN DIBACA DENGAN MUDAH -->
+          <div
+            class="w-full border-t border-slate-400/30 dark:border-white/20 pt-4 mt-2 z-20"
+          >
+            <div
+              id="label-container"
+              class="grid grid-cols-2 gap-2 text-xs font-semibold"
+            ></div>
+          </div>
+        </section>
+      </main>
+
+      <!-- FOOTER COMMAND -->
+      <footer
+        class="w-full wet-glass rounded-2xl p-4 flex justify-between items-center text-sm z-20 shadow-lg"
+      >
+        <span
+          class="text-slate-800 dark:text-white font-extrabold flex items-center gap-2"
+        >
+          <i
+            class="fas fa-satellite-dish text-orange-500 dark:text-cyan-400"
+          ></i>
+          Status Perintah:
+        </span>
+        <div
+          class="bg-white/70 dark:bg-black/50 px-6 py-1.5 rounded-xl border border-white/60 font-mono font-black text-orange-600 dark:text-cyan-300 text-lg uppercase tracking-widest shadow-inner"
+        >
+          <span id="last-cmd">STOP</span>
+        </div>
+      </footer>
+    </div>
+
+    <!-- MODAL FIREBASE -->
+    <div
+      id="fb-modal"
+      class="fixed inset-0 bg-slate-900/50 dark:bg-slate-950/80 backdrop-blur-md hidden items-center justify-center z-[60] p-4 text-slate-800 dark:text-white"
+    >
+      <div
+        class="wet-glass border border-white/60 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4 bg-white/80 dark:bg-slate-900/90"
+      >
+        <div
+          class="flex justify-between items-center border-b border-slate-300 dark:border-white/20 pb-3"
+        >
+          <h3 class="font-black text-base text-slate-900 dark:text-white">
+            <i
+              class="fas fa-database text-orange-500 dark:text-cyan-400 mr-2"
+            ></i
+            >Pengaturan Firebase
+          </h3>
+          <button
+            onclick="toggleModal(false)"
+            class="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white p-1"
+          >
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label
+              class="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block"
+              >API Key</label
+            >
+            <input
+              type="text"
+              id="fb-api-key"
+              placeholder="Masukkan API Key"
+              class="w-full bg-white/80 dark:bg-black/40 border border-slate-300 dark:border-white/30 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-cyan-400 text-slate-900 dark:text-white font-mono"
+            />
+          </div>
+          <div>
+            <label
+              class="text-xs font-bold text-slate-700 dark:text-slate-300 mb-1 block"
+              >Database URL</label
+            >
+            <input
+              type="text"
+              id="fb-db-url"
+              placeholder="https://your-app.firebaseio.com"
+              class="w-full bg-white/80 dark:bg-black/40 border border-slate-300 dark:border-white/30 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 dark:focus:ring-cyan-400 text-slate-900 dark:text-white font-mono"
+            />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button
+            onclick="toggleModal(false)"
+            class="px-4 py-2 bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 rounded-xl text-xs font-bold text-slate-700 dark:text-white"
+          >
+            Batal
+          </button>
+          <button
+            onclick="initFirebase()"
+            class="px-4 py-2 bg-orange-500 dark:bg-cyan-500 hover:bg-orange-600 dark:hover:bg-cyan-400 text-white rounded-xl text-xs font-bold shadow-md"
+          >
+            Hubungkan
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      // --- FITUR DARK MODE & GELEMBUNG ---
+      const themeToggleBtn = document.getElementById("theme-toggle");
+      const htmlElement = document.documentElement;
+      if (
+        localStorage.theme === "dark" ||
+        (!("theme" in localStorage) &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches)
+      ) {
+        htmlElement.classList.add("dark");
+      }
+      themeToggleBtn.addEventListener("click", () => {
+        htmlElement.classList.toggle("dark");
+        localStorage.theme = htmlElement.classList.contains("dark")
+          ? "dark"
+          : "light";
+      });
+
+      function createSuperBubble() {
+        const container = document.getElementById("bubbles-container");
+        if (!container) return;
+        const bubble = document.createElement("div");
+        bubble.classList.add("dynamic-bubble");
+        bubble.style.left = Math.random() * 100 + "vw";
+        const size = Math.random() * 30 + 6;
+        bubble.style.width = size + "px";
+        bubble.style.height = size + "px";
+        const floatDuration = Math.random() * 6 + 5;
+        const swayDuration = Math.random() * 2 + 1.5;
+        bubble.style.animationDuration = `${floatDuration}s, ${swayDuration}s`;
+        container.appendChild(bubble);
+        setTimeout(() => bubble.remove(), floatDuration * 1000);
+      }
+      setInterval(createSuperBubble, 350);
+
+      // --- LOGIKA MODAL ---
+      function toggleModal(show) {
+        document.getElementById("fb-modal").style.display = show
+          ? "flex"
+          : "none";
+      }
+
+      // --- LOGIKA FIREBASE ---
+      let dbRef = null;
+      function initFirebase() {
+        const apiKey = document.getElementById("fb-api-key").value.trim();
+        const databaseURL = document.getElementById("fb-db-url").value.trim();
+
+        if (!apiKey || !databaseURL) {
+          alert("Harap isi API Key dan Database URL Firebase!");
+          return;
+        }
+
+        try {
+          const firebaseConfig = { apiKey, databaseURL };
+          if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+          } else {
+            firebase
+              .app()
+              .delete()
+              .then(() => {
+                firebase.initializeApp(firebaseConfig);
+              });
+          }
+
+          dbRef = firebase.database().ref("robot_control");
+          document.getElementById("fb-status").innerText = "Terhubung";
+          document.getElementById("fb-status").className =
+            "text-emerald-700 dark:text-emerald-400 font-bold bg-white/60 dark:bg-black/40 px-2.5 py-1 rounded-lg";
+          toggleModal(false);
+          alert("Berhasil terhubung ke Firebase!");
+        } catch (e) {
+          console.error("Firebase Init Error:", e);
+          document.getElementById("fb-status").innerText = "Gagal Konek";
+          document.getElementById("fb-status").className =
+            "text-red-600 dark:text-red-400 font-bold bg-white/60 dark:bg-black/40 px-2.5 py-1 rounded-lg";
+          alert("Gagal konek Firebase. Periksa API Key / Database URL.");
+        }
+      }
+
+      function sendToFirebase(command, mode) {
+        if (dbRef) {
+          dbRef
+            .set({
+              command: command,
+              mode: mode,
+              timestamp: Date.now(),
+            })
+            .catch((err) => console.error("Firebase Sync Error:", err));
+        }
+      }
+
+      // --- LOGIKA BLUETOOTH & AI ---
+      const MODEL_URL =
+        "https://teachablemachine.withgoogle.com/models/KFYXBYTuP/";
+      let model, webcam, labelContainer, maxPredictions;
+      let bluetoothDevice, uartRxCharacteristic, uartTxCharacteristic;
+      let currentCommand = "stop";
+      let isAiMode = false;
+
+      // UUIDs Standar Micro:bit
+      const UART_SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+      const UART_TX_CHARACTERISTIC_UUID =
+        "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+      const UART_RX_CHARACTERISTIC_UUID =
+        "6e400003-b5a3-f393-e0a9-e50e24dcca9e";
+
+      async function connectBluetooth() {
+        try {
+          bluetoothDevice = await navigator.bluetooth.requestDevice({
+            filters: [{ namePrefix: "BBC micro:bit" }],
+            optionalServices: [UART_SERVICE_UUID],
+          });
+
+          const server = await bluetoothDevice.gatt.connect();
+          const service = await server.getPrimaryService(UART_SERVICE_UUID);
+
+          try {
+            uartTxCharacteristic = await service.getCharacteristic(
+              UART_TX_CHARACTERISTIC_UUID,
+            );
+          } catch (e) {
+            console.warn("UART TX Char not found", e);
+          }
+          try {
+            uartRxCharacteristic = await service.getCharacteristic(
+              UART_RX_CHARACTERISTIC_UUID,
+            );
+          } catch (e) {
+            console.warn("UART RX Char not found", e);
+          }
+
+          document.getElementById("ble-status").innerText = "Connected";
+          document.getElementById("ble-status").className =
+            "text-emerald-700 dark:text-emerald-400 font-bold bg-white/60 dark:bg-black/40 px-2.5 py-1 rounded-lg";
+          document.getElementById("ble-btn-text").innerText =
+            "Micro:bit Terhubung";
+          document.getElementById("status-dot").className =
+            "w-3.5 h-3.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_12px_rgba(52,211,153,1)]";
+        } catch (error) {
+          console.error("Bluetooth Gagal:", error);
+          alert("Gagal/Dibatalkan terhubung dengan micro:bit.");
+        }
+      }
+
+      async function sendToMicrobit(command) {
+        if (currentCommand === command) return;
+        currentCommand = command;
+        document.getElementById("last-cmd").innerText = command;
+
+        sendToFirebase(command, isAiMode ? "AI_AUTOMATIC" : "MANUAL_JOYSTICK");
+
+        const targetChar = uartRxCharacteristic || uartTxCharacteristic;
+        if (targetChar) {
+          try {
+            const encoder = new TextEncoder();
+            const structuredPayload = `move,${command}\n`;
+            await targetChar.writeValue(encoder.encode(structuredPayload));
+
+            const plainPayload = `${command}\n`;
+            await targetChar.writeValue(encoder.encode(plainPayload));
+          } catch (err) {
+            console.error("Bluetooth TX Error:", err);
+          }
+        }
+      }
+
+      // --- SETUP JOYSTICK ---
+      function setupManualJoystick() {
+        const buttons = {
+          "bt-up": "up",
+          "bt-down": "down",
+          "bt-left": "left",
+          "bt-right": "right",
+        };
+        Object.keys(buttons).forEach((id) => {
+          const btn = document.getElementById(id);
+          const cmd = buttons[id];
+          const startPress = (e) => {
+            e.preventDefault();
+            if (!isAiMode) {
+              highlightButton(id);
+              sendToMicrobit(cmd);
+            }
+          };
+          const endPress = (e) => {
+            e.preventDefault();
+            if (!isAiMode) {
+              resetButtons();
+              sendToMicrobit("stop");
+            }
+          };
+          btn.addEventListener("mousedown", startPress);
+          btn.addEventListener("mouseup", endPress);
+          btn.addEventListener("mouseleave", endPress);
+          btn.addEventListener("touchstart", startPress);
+          btn.addEventListener("touchend", endPress);
+        });
+      }
+      setupManualJoystick();
+
+      // --- KAMERA AI TEACHABLE MACHINE ---
+      async function toggleCamera() {
+        if (!isAiMode) {
+          document.getElementById("cam-btn-text").innerText = "Memuat Model...";
+          if (!model) {
+            const modelURL = MODEL_URL + "model.json";
+            const metadataURL = MODEL_URL + "metadata.json";
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+          }
+
+          const flip = true;
+          webcam = new tmImage.Webcam(224, 224, flip);
+          await webcam.setup();
+          await webcam.play();
+
+          document.getElementById("cam-placeholder").style.display = "none";
+          const webcamCanvas = webcam.canvas;
+          webcamCanvas.className = "w-full h-full object-cover rounded-full";
+          document.getElementById("webcam-container").appendChild(webcamCanvas);
+
+          labelContainer = document.getElementById("label-container");
+          labelContainer.innerHTML = "";
+          for (let i = 0; i < maxPredictions; i++) {
+            let div = document.createElement("div");
+            div.className =
+              "bg-white/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 flex justify-between shadow-sm text-slate-900 dark:text-slate-100 font-bold";
+            div.innerHTML = `<span class="capitalize label-name"></span><span class="text-orange-600 dark:text-cyan-300 font-extrabold label-prob"></span>`;
+            labelContainer.appendChild(div);
+          }
+
+          isAiMode = true;
+          document.getElementById("cam-btn-text").innerText = "Matikan AI";
+          document.getElementById("mode-badge").innerText = "Mode: AI Vision";
+          document
+            .getElementById("mode-badge")
+            .classList.add(
+              "bg-orange-500",
+              "dark:bg-cyan-500",
+              "text-white",
+              "animate-pulse",
+            );
+
+          window.requestAnimationFrame(loop);
+        } else {
+          isAiMode = false;
+          if (webcam) webcam.stop();
+          document.getElementById("webcam-container").innerHTML = "";
+          document.getElementById("cam-placeholder").style.display = "flex";
+          document.getElementById("label-container").innerHTML = "";
+
+          document.getElementById("cam-btn-text").innerText = "Aktifkan Kamera";
+          document.getElementById("mode-badge").innerText = "Manual Joystick";
+          document
+            .getElementById("mode-badge")
+            .classList.remove(
+              "bg-orange-500",
+              "dark:bg-cyan-500",
+              "text-white",
+              "animate-pulse",
+            );
+
+          resetButtons();
+          sendToMicrobit("stop");
+        }
+      }
+
+      async function loop() {
+        if (!isAiMode) return;
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
+      }
+
+      async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let highestProb = 0;
+        let bestClass = "stop";
+
+        for (let i = 0; i < maxPredictions; i++) {
+          const className = prediction[i].className;
+          const probability = prediction[i].probability;
+
+          const container = labelContainer.childNodes[i];
+          if (container) {
+            container.querySelector(".label-name").innerText = className;
+            container.querySelector(".label-prob").innerText =
+              (probability * 100).toFixed(0) + "%";
+          }
+
+          if (probability > highestProb) {
+            highestProb = probability;
+            bestClass = className.toLowerCase();
+          }
+        }
+
+        if (highestProb < 0.65) bestClass = "stop";
+
+        if (
+          bestClass.includes("atas") ||
+          bestClass.includes("up") ||
+          bestClass.includes("maju")
+        ) {
+          highlightButton("bt-up");
+          sendToMicrobit("up");
+        } else if (
+          bestClass.includes("bawah") ||
+          bestClass.includes("down") ||
+          bestClass.includes("mundur")
+        ) {
+          highlightButton("bt-down");
+          sendToMicrobit("down");
+        } else if (bestClass.includes("kiri") || bestClass.includes("left")) {
+          highlightButton("bt-left");
+          sendToMicrobit("left");
+        } else if (bestClass.includes("kanan") || bestClass.includes("right")) {
+          highlightButton("bt-right");
+          sendToMicrobit("right");
+        } else {
+          resetButtons();
+          sendToMicrobit("stop");
+        }
+      }
+
+      // --- HIGHLIGHT BUTTON HELPER ---
+      function highlightButton(id) {
+        resetButtons();
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.add("active-btn");
+      }
+
+      function resetButtons() {
+        ["bt-up", "bt-down", "bt-left", "bt-right"].forEach((id) => {
+          const btn = document.getElementById(id);
+          if (btn) btn.classList.remove("active-btn");
+        });
+      }
+    </script>
+  </body>
+</html>
