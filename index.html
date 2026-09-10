@@ -382,7 +382,7 @@
               <div></div>
               <button
                 id="bt-up"
-                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer touch-none"
               >
                 <i
                   class="fas fa-chevron-up text-2xl group-hover:-translate-y-1 transition-transform"
@@ -392,7 +392,7 @@
 
               <button
                 id="bt-left"
-                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer touch-none"
               >
                 <i
                   class="fas fa-chevron-left text-2xl group-hover:-translate-x-1 transition-transform"
@@ -412,7 +412,7 @@
 
               <button
                 id="bt-right"
-                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer touch-none"
               >
                 <i
                   class="fas fa-chevron-right text-2xl group-hover:translate-x-1 transition-transform"
@@ -422,7 +422,7 @@
               <div></div>
               <button
                 id="bt-down"
-                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer"
+                class="dpad-btn bubble-btn group flex flex-col items-center justify-center cursor-pointer touch-none"
               >
                 <i
                   class="fas fa-chevron-down text-2xl group-hover:translate-y-1 transition-transform"
@@ -774,28 +774,35 @@
           "bt-left": "left",
           "bt-right": "right",
         };
+        
         Object.keys(buttons).forEach((id) => {
           const btn = document.getElementById(id);
           const cmd = buttons[id];
+          
           const startPress = (e) => {
-            e.preventDefault();
+            if (e.cancelable) e.preventDefault();
             if (!isAiMode) {
               highlightButton(id);
               sendToMicrobit(cmd);
             }
           };
+          
           const endPress = (e) => {
-            e.preventDefault();
+            if (e.cancelable) e.preventDefault();
             if (!isAiMode) {
               resetButtons();
               sendToMicrobit("stop");
             }
           };
-          btn.addEventListener("mousedown", startPress);
-          btn.addEventListener("mouseup", endPress);
-          btn.addEventListener("mouseleave", endPress);
-          btn.addEventListener("touchstart", startPress);
-          btn.addEventListener("touchend", endPress);
+
+          // Mencegah menu konteks (klik kanan / tahan lama di HP) yang membuat tombol stuck
+          btn.addEventListener("contextmenu", (e) => e.preventDefault());
+
+          // Menggunakan Pointer Events yang mendeteksi klik mouse maupun sentuhan layar dengan akurat
+          btn.addEventListener("pointerdown", startPress);
+          btn.addEventListener("pointerup", endPress);
+          btn.addEventListener("pointerleave", endPress);
+          btn.addEventListener("pointercancel", endPress);
         });
       }
       setupManualJoystick();
