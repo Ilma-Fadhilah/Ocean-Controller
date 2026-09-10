@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Micro:bit Dual Controller - Ocean Command</title>
+    <title>Micro:bit Dual Controller - Ocean Controller</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link
       rel="stylesheet"
@@ -399,16 +399,21 @@
                 ></i>
               </button>
 
-              <div class="flex items-center justify-center">
+              <!-- TOMBOL TENGAH: SEKARANG BERFUNGSI SEBAGAI TOMBOL STOP -->
+              <button
+                id="bt-stop"
+                class="flex items-center justify-center cursor-pointer group touch-none"
+                title="Force Stop"
+              >
                 <div
-                  class="w-12 h-12 bg-white/50 dark:bg-black/40 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/60"
+                  class="w-12 h-12 bg-white/50 dark:bg-black/40 group-hover:bg-white/80 dark:group-hover:bg-black/60 group-active:scale-90 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/60 transition-all"
                 >
                   <div
                     id="status-dot"
-                    class="w-3.5 h-3.5 bg-red-500 dark:bg-rose-500 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.8)]"
+                    class="w-3.5 h-3.5 bg-red-500 dark:bg-rose-500 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.8)] group-hover:shadow-[0_0_20px_rgba(239,68,68,1)] transition-shadow"
                   ></div>
                 </div>
-              </div>
+              </button>
 
               <button
                 id="bt-right"
@@ -768,6 +773,7 @@
 
       // --- SETUP JOYSTICK ---
       function setupManualJoystick() {
+        // Logika untuk tombol arah
         const buttons = {
           "bt-up": "up",
           "bt-down": "down",
@@ -795,15 +801,28 @@
             }
           };
 
-          // Mencegah menu konteks (klik kanan / tahan lama di HP) yang membuat tombol stuck
           btn.addEventListener("contextmenu", (e) => e.preventDefault());
-
-          // Menggunakan Pointer Events yang mendeteksi klik mouse maupun sentuhan layar dengan akurat
           btn.addEventListener("pointerdown", startPress);
           btn.addEventListener("pointerup", endPress);
           btn.addEventListener("pointerleave", endPress);
           btn.addEventListener("pointercancel", endPress);
         });
+
+        // Logika untuk tombol tengah (STOP)
+        const stopBtn = document.getElementById("bt-stop");
+        if (stopBtn) {
+          const forceStop = (e) => {
+            if (e.cancelable) e.preventDefault();
+            if (!isAiMode) {
+              resetButtons();
+              sendToMicrobit("stop");
+            }
+          };
+          
+          // Kirim perintah stop segera setelah tombol tengah diklik/ditekan
+          stopBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+          stopBtn.addEventListener("pointerdown", forceStop);
+        }
       }
       setupManualJoystick();
 
